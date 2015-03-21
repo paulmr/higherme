@@ -7,7 +7,18 @@ import java.io.{StringReader, FileReader, PrintStream}
 
 object CsvParser extends RegexParsers {
 
-  val desired = List(6,8)
+  /* e.g. header */
+  val skipLines = 1
+
+  /* names for the fields that I want to access */
+  object Fields {
+    def field(i: Int) = (l: List[String]) => l.lift(i)
+    def soc  = field(6)
+    def name = field(8)
+  }
+
+  val nonWordChars = """[^A-Za-z]"""
+  val wordSep = """[ \t]+"""
 
   def csv = rep1sep(line, lsep)
   def line = rep1sep(field, fsep)
@@ -17,41 +28,43 @@ object CsvParser extends RegexParsers {
 
   override def skipWhitespace = false
 
-//  def separator = accept(',')
-
   def lsep = rep1("""[\n\r]+""".r)
 
-//  def eof = Parser(in => if(in.atEnd) Success((), in) else Error("expected eof", in))
-
-  // def processCsv(in: Source): IndexedSeq[IndexedSeq[String]] = {
-  //   val csv = new VectorBuilder[String]
-  //   val line = new VectorBuilder[String]
-
-  //   in.foreach {
-  //     case '\n' => println("new line")
-  //     case _    => println("not recog")
-  //   }
-  //   Vector.empty
-  // }
-
-  def parseFile(fname: String) =
-    parseAll(csv, StreamReader(new FileReader(fname)))
+  def parseFile(r: FileReader) =
+    parseAll(csv, StreamReader(r))
 
   def parseString(s: String) =
     parseAll(csv, StreamReader(new StringReader(s)))
 
+  def cleanWord(w: String) = w.replaceAll(nonWordChars, "").toUpperCase
+
+  // don't do these words, they are common probably irrelavent
+  val simpleWords = List("the", "for", "a", "in", "at", "and", "").map(_.toUpperCase)
+  def simpleWord(w: String) = simpleWords.contains(w.toUpperCase)
+
   def transform(in: List[List[String]], out: PrintStream): Unit =
-    for(line <- in) {
-      out.println(desired.map(line.lift(_).getOrElse("-")).mkString(","))
+    for(line <- in.drop(skipLines)) {
+      for {
+        name <- Fields.name(line)
+        soc  <- Fields.soc(line)
+        nameWords = name.split(wordSep).map(cleanWord _).filterNot(simpleWord _)
+      } {
+        assert(soc.indexOf(',') == -1)
+        nameWords foreach { word => out.println(s"$word,$soc") }
+      }
     }
+
 
   def main(args: Array[String]) = {
     if(args.length < 2) {
       println("Args: infile outfile")
     } else {
-      val (infile, outfile) = (args(0), args(1))
+      val (infile, outfile) = (args(0), args(1)) match {
+        case (in, "-") => (new FileReader(in), System.out)
+        case (in, out) => (new FileReader(in), new PrintStream(out))
+      }
       parseFile(infile) match {
-        case Success(l, _) => println(s"success: ${l.length}"); transform(l, new PrintStream(outfile))
+        case Success(l, _) => println(s"success: ${l.length}"); transform(l, outfile)
         case f: NoSuccess => System.err.println(s"failure $f")
       }
     }
