@@ -3,13 +3,30 @@ import scala.io.Source
 import Util.cleanWord
 
 class Classifier(corpus: Map[String, Classifications]) {
-  def score(word: String): Classifications =
-    corpus.getOrElse(cleanWord(word), Classifications.empty)
+  def score(word: String): Classifications = {
+    val res = corpus.getOrElse(cleanWord(word), Classifications.empty)
+    if(!res.isEmpty) { println(s"$word matches " + res) }
+    res
+  }
 
   def classify(words: Seq[String]) =
     words.foldLeft(Classifications.empty) { (acc, word) =>
       acc ++ score(word)
     }
+}
+
+object Classifier {
+  def read(stream: InputStream): Classifier = {
+    val in = Source.fromInputStream(stream).getLines
+    val corpus = in.foldLeft(Map.empty[String, Classifications]) { (corpusAcc, rawline) =>
+      val line = CSVLine(rawline)
+      val cl = corpusAcc.getOrElse(line.word, Classifications.empty)
+      corpusAcc + (line.word -> (cl + Classification(CSVLine(rawline))))
+    }
+    new Classifier(corpus)
+  }
+
+  def read(fname: String): Classifier = read(new FileInputStream(fname))
 }
 
 case class CSVLine(word: String, soc: String, weight: Int)
@@ -23,6 +40,7 @@ object CSVLine {
 }
 
 class Classifications(private val data: Map[String, Int]) {
+  def isEmpty = data.isEmpty
   def +(cl: Classification): Classifications =
     new Classifications(data + (cl.code -> cl.weight))
 
@@ -49,18 +67,4 @@ object Classifications {
 case class Classification(code: String, weight: Int)
 object Classification {
   def apply(line: CSVLine): Classification = Classification(line.soc, line.weight)
-}
-
-object Classifier {
-  def read(stream: InputStream): Classifier = {
-    val in = Source.fromInputStream(stream).getLines
-    val corpus = in.foldLeft(Map.empty[String, Classifications]) { (corpusAcc, rawline) =>
-      val line = CSVLine(rawline)
-      val cl = corpusAcc.getOrElse(line.word, Classifications.empty)
-      corpusAcc + (line.word -> (cl + Classification(CSVLine(rawline))))
-    }
-    new Classifier(corpus)
-  }
-
-  def read(fname: String): Classifier = read(new FileInputStream(fname))
 }
