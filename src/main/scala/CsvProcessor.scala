@@ -1,11 +1,12 @@
 import scala.io.Source
+import scala.util.Try
 import java.io.FileInputStream
 import scala.collection.immutable.VectorBuilder
 import scala.util.parsing.combinator.RegexParsers
 import scala.util.parsing.input.StreamReader
 import java.io.{StringReader, FileReader, PrintStream}
 
-object CsvParser extends RegexParsers {
+object CsvProcessor extends RegexParsers {
 
   /* e.g. header */
   val skipLines = 1
@@ -45,12 +46,13 @@ object CsvParser extends RegexParsers {
   def transform(in: List[List[String]], out: PrintStream): Unit =
     for(line <- in.drop(skipLines)) {
       for {
-        name <- Fields.name(line)
-        soc  <- Fields.soc(line)
+        name   <- Fields.name(line)
+        socStr <- Fields.soc(line)
+        soc    <- Try(socStr.toInt).toOption // make sure SOC is a number
         nameWords = name.split(wordSep).map(cleanWord _).filterNot(simpleWord _)
+        weight = 1 // haven't decided how this will work yet
       } {
-        assert(soc.indexOf(',') == -1)
-        nameWords foreach { word => out.println(s"$word,$soc") }
+        nameWords foreach { word => out.println(s"$word,$soc,$weight") }
       }
     }
 
