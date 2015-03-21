@@ -36,17 +36,13 @@ object CsvProcessor extends RegexParsers {
   def parseString(s: String) =
     parseAll(csv, StreamReader(new StringReader(s)))
 
-  // don't do these words, they are common probably irrelavent
-  val simpleWords = List("the", "for", "a", "in", "at", "and", "").map(_.toUpperCase)
-  def simpleWord(w: String) = simpleWords.contains(w.toUpperCase)
-
   def transform(in: List[List[String]], out: PrintStream): Unit =
     for(line <- in.drop(skipLines)) {
       for {
         name   <- Fields.name(line)
         socStr <- Fields.soc(line)
         soc    <- Try(socStr.toInt).toOption // make sure SOC is a number
-        nameWords = name.split(wordSep).map(Util.cleanWord _).filterNot(simpleWord _)
+        nameWords = name.split(wordSep).map(Util.cleanWord _).filterNot(Util.simpleWord _)
         weight = 1 // haven't decided how this will work yet
       } {
         nameWords foreach { word => out.println(s"$word,$soc,$weight") }

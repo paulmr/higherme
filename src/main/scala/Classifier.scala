@@ -3,9 +3,13 @@ import scala.io.Source
 import Util.cleanWord
 
 class Classifier(corpus: Map[String, Classifications]) {
-
   def score(word: String): Classifications =
     corpus.getOrElse(cleanWord(word), Classifications.empty)
+
+  def classify(words: Seq[String]) =
+    words.foldLeft(Classifications.empty) { (acc, word) =>
+      acc ++ score(word)
+    }
 }
 
 case class CSVLine(word: String, soc: String, weight: Int)
@@ -59,5 +63,4 @@ object Classifier {
   }
 
   def read(fname: String): Classifier = read(new FileInputStream(fname))
-
 }
