@@ -2,7 +2,8 @@ import java.io.{InputStream, FileInputStream}
 import scala.io.Source
 
 class Classifier(val corpus: Map[String, List[Classification]]) {
-//  def score(word: String): List[(String, Int)] =
+  def score(word: String): List[Classification] =
+    corpus.getOrElse(Util.cleanWord(word), Nil)
 }
 
 case class CSVLine(word: String, soc: String, weight: Int)
