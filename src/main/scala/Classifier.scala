@@ -1,9 +1,11 @@
 import java.io.{InputStream, FileInputStream}
 import scala.io.Source
+import Util.cleanWord
 
-class Classifier(val corpus: Map[String, List[Classification]]) {
-  def score(word: String): List[Classification] =
-    corpus.getOrElse(Util.cleanWord(word), Nil)
+class Classifier(corpus: Map[String, Classifications]) {
+
+  def score(word: String): Classifications =
+    corpus.getOrElse(cleanWord(word), Classifications.empty)
 }
 
 case class CSVLine(word: String, soc: String, weight: Int)
@@ -16,18 +18,42 @@ object CSVLine {
   }
 }
 
+class Classifications(private val data: Map[String, Int]) {
+  def +(cl: Classification): Classifications =
+    new Classifications(data + (cl.code -> cl.weight))
+
+  // merges
+  def ++(that: Classifications): Classifications =
+    new Classifications(
+      that.data.keys.foldLeft(data) { (acc, thatKey) =>
+        acc + (thatKey -> (acc.getOrElse(thatKey, 0) + that.data(thatKey)))
+      }
+    )
+
+  def sorted: Seq[(String, Int)] = data.toList sortBy { case (_, weight) => weight }
+
+  override def toString =
+    sorted.take(5).map { case (code, weight) => s"$code -> $weight" } mkString ", "
+
+}
+
+object Classifications {
+  def empty = new Classifications(Map.empty[String, Int])
+  def apply(c: Classification) = new Classifications(Map(c.code -> c.weight))
+}
+
 case class Classification(code: String, weight: Int)
 object Classification {
-  def fromLine(line: CSVLine) = Classification(line.soc, line.weight)
+  def apply(line: CSVLine): Classification = Classification(line.soc, line.weight)
 }
 
 object Classifier {
   def read(stream: InputStream): Classifier = {
     val in = Source.fromInputStream(stream).getLines
-    val corpus = in.foldLeft(Map.empty[String, List[Classification]]) { (corpusAcc, rawline) =>
-      val line    = CSVLine(rawline)
-      val classes = corpusAcc.getOrElse(line.word, Nil)
-      corpusAcc.updated(line.word, (Classification fromLine line) :: classes)
+    val corpus = in.foldLeft(Map.empty[String, Classifications]) { (corpusAcc, rawline) =>
+      val line = CSVLine(rawline)
+      val cl = corpusAcc.getOrElse(line.word, Classifications.empty)
+      corpusAcc + (line.word -> (cl + Classification(CSVLine(rawline))))
     }
     new Classifier(corpus)
   }
